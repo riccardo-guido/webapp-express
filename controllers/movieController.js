@@ -110,7 +110,7 @@ const modify = (req, res) => {
 const destroy = (req, res) => {
   const postId = parseInt(req.params.id);
   const sql = `
-    DELETE FROM blogdb.posts WHERE (id = ?);`;
+    DELETE FROM moviesdb.movies WHERE (id = ?);`;
 
   connection.query(sql, [postId], (err, results) => {
     if (err) return res.status(500).json({ error: "Error executing query" });

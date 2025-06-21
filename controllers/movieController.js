@@ -1,126 +1,94 @@
 const connection = require("../data/db");
 
 const index = (req, res) => {
-  const sql = "SELECT * FROM `movies`";
+  const sql = `
+    SELECT 
+      movies.*,
+      AVG(reviews.vote) AS average_vote
+    FROM movies
+    LEFT JOIN reviews ON movies.id = reviews.movie_id
+    GROUP BY movies.id
+  `;
+
   connection.query(sql, (err, results) => {
-    if (err) throw err;
-    console.log(results);
+    if (err) return res.status(500).json({ message: "Internal server error" });
 
     res.json({
-      data: results,
       status: 200,
+      data: results,
     });
   });
 };
 
 const show = (req, res) => {
-  const postId = parseInt(req.params.id);
-  const sql = `
-    SELECT *
-    FROM movies
-    WHERE id = ?`;
+  const movieId = parseInt(req.params.id);
 
-  connection.query(sql, [postId], (err, results) => {
-    if (err) return res.status(500).json({ error: "Error executing query" });
-    if (results === 0) return res.status(404).json({ error: "Post not found" });
+  const movieSql = `SELECT * FROM movies WHERE id = ?`;
 
-    const post = results[0];
-    res.json({
-      data: post,
-      status: 200,
+  const reviewsSql = `
+    SELECT * FROM reviews 
+    WHERE movie_id = ?
+    ORDER BY created_at DESC
+  `;
+
+  connection.query(movieSql, [movieId], (err, movieResults) => {
+    if (err) return res.status(500).json({ message: "Error loading movie" });
+    if (movieResults.length === 0)
+      return res.status(404).json({ message: "Movie not found" });
+
+    const movie = movieResults[0];
+
+    connection.query(reviewsSql, [movieId], (err, reviewResults) => {
+      if (err)
+        return res.status(500).json({ message: "Error loading reviews" });
+
+      res.json({
+        status: 200,
+        data: {
+          movie,
+          reviews: reviewResults,
+        },
+      });
     });
   });
 };
 
-const store = (req, res) => {};
+const getReviews = (req, res) => {
+  const movieId = parseInt(req.params.id);
+  if (Number.isNaN(movieId)) {
+    return res.status(400).json({ message: "Invalid movie id" });
+  }
 
-const update = (req, res) => {
-  //   //CONTROLLO SE IL POST DA MODIFICARE ESISTE
-  //   const postId = parseInt(req.params.id);
-  //   const originalPost = posts.find(currentPost => currentPost.id === postId);
-  //   if(!originalPost) {
-  //     const error = new Error("Post not found");
-  //   error.statusCode = 404;
-  //   throw error;
-  //   }
-  //   //CONTROLLO CHE LA RICHIESTA NON SIA MALFORMATA
-  // const { title, content, image, tags } = req.body;
-  // const malformedElements = [];
-  // if (!title || typeof title !== "string" || title.length < 3) {
-  // malformedElements.push("title");
-  // }
-  // if (!content || typeof content !== "string" || content.length < 3) {
-  // malformedElements.push("content");
-  // }
-  // if (typeof image !== "string") { malformedElements.push("image");
-  // }
-  // if (!Array.isArray (tags)) { malformedElements.push("tags"); }
-  // if (malformedElements.length) {
-  //     const error = new Error("Request is malformed");
-  //   error.statusCode = 400;
-  //   error.data = { malformedElements};
-  //   throw error;
-  // }
-  // // EFFETTUO LA SOSTITUZIONE
-  // const updatedPost = { id: postId , title, content, image, tags }
-  // const originalPostIndex = posts.indexOf(originalPost);
-  // posts.splice(originalPostIndex, 1, updatedPost);
-  // res.json(updatedPost);
-};
-
-const modify = (req, res) => {
-  //  //CONTROLLO SE IL POST DA MODIFICARE ESISTE
-  //   const postId = parseInt(req.params.id);
-  //   const originalPost = posts.find(currentPost => currentPost.id === postId);
-  //   if(!originalPost) {
-  //    const error = new Error("Post not Found");
-  //   error.statusCode = 404;
-  //   throw error;
-  //   }
-  //   const title = req.body.title ?? originalPost.title;
-  //   const content = req.body.content ?? originalPost.content;
-  //   const image = req.body.image ?? originalPost.image;
-  //   const tags = req.body.tags ?? originalPost.tags;
-  //   const malformedElements = [];
-  // if (typeof title !== "string" || title.length < 3) {
-  // malformedElements.push("title");
-  // }
-  // if (typeof content !== "string" || content.length < 3) {
-  // malformedElements.push("content");
-  // }
-  // if (typeof image !== "string") { malformedElements.push("image");
-  // }
-  // if (!Array.isArray (tags)) { malformedElements.push("tags"); }
-  // if (malformedElements.length) {
-  //   res.status(400);
-  // res.json({
-  //   error: "400 Bad Request",
-  //   message: "Request is malformed",
-  //   malformedElements,
-  // });
-  // return;
-  // }
-  // originalPost.title = title;
-  // originalPost.content = content;
-  // originalPost.image = image;
-  // originalPost.tags = tags;
-  //   res.json(originalPost);
-};
-
-const destroy = (req, res) => {
-  const postId = parseInt(req.params.id);
   const sql = `
-    DELETE FROM moviesdb.movies WHERE (id = ?);`;
+    SELECT * FROM reviews
+    WHERE movie_id = ?
+    ORDER BY created_at DESC
+  `;
 
-  connection.query(sql, [postId], (err, results) => {
-    if (err) return res.status(500).json({ error: "Error executing query" });
-    if (results === 0) return res.status(404).json({ error: "Post not found" });
-
+  connection.query(sql, [movieId], (err, results) => {
+    if (err) return res.status(500).json({ message: "Database error" });
     res.json({
+      status: 200,
       data: results,
-      status: 200,
     });
   });
 };
 
-module.exports = { index, show, store, update, modify, destroy };
+const storeReview = (req, res) => {
+  const movieId = parseInt(req.params.id);
+  const { id, name, vote, text } = req.body;
+  const sqlStoreReview = `
+  INSERT INTO moviesdb.reviews (id, movie_id, name, vote, text) VALUES (?, ?, ?, ?, ?);
+  `;
+  const movie_id = movieId;
+  const sqlStoreReviewValues = [id, movie_id, name, vote, text];
+
+  connection.query(sqlStoreReview, sqlStoreReviewValues, (err, results) => {
+    res.status(201).json({
+      message: "review added",
+      id: results.insertId,
+    });
+  });
+};
+
+module.exports = { index, getReviews, storeReview };

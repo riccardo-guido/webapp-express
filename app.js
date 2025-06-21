@@ -1,7 +1,7 @@
 //imports
 const express = require("express");
 const cors = require("cors");
-const moviesRouter = require("./routers/movies");
+const moviesRouter = require("./routers//moviesRouter");
 const appPort = 3000;
 const appUrl = `http://localhost:${appPort}`;
 
@@ -17,6 +17,7 @@ const corsConfig = {
 //static assets middleware
 app.use(cors(corsConfig));
 app.use(express.static("public"));
+app.use("/images", express.static("images"));
 
 // body parsers middlewares
 app.use(express.json());
